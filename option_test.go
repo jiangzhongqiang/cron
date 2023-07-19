@@ -8,7 +8,7 @@ import (
 )
 
 func TestWithLocation(t *testing.T) {
-	c := New(WithLocation(time.UTC))
+	c := New(WithClock(UTCClock()))
 	if c.location != time.UTC {
 		t.Errorf("expected UTC, got %v", c.location)
 	}

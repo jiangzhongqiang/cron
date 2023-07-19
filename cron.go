@@ -19,6 +19,7 @@ type Cron struct {
 	snapshot  chan chan []Entry
 	running   bool
 	logger    Logger
+	clock     Clock
 	runningMu sync.Mutex
 	location  *time.Location
 	parser    ScheduleParser
@@ -121,12 +122,13 @@ func New(opts ...Option) *Cron {
 		running:   false,
 		runningMu: sync.Mutex{},
 		logger:    DefaultLogger,
-		location:  time.Local,
+		clock:     DefaultClock,
 		parser:    standardParser,
 	}
 	for _, opt := range opts {
 		opt(c)
 	}
+	c.location = c.clock.Location()
 	return c
 }
 
@@ -251,25 +253,31 @@ func (c *Cron) run() {
 	}
 	c.entries = *sortedEntries
 
+	var timer *time.Timer
 	for {
 		// Determine the next entry to run.
 		// User min-heap no need sort anymore
 		//sort.Sort(byTime(c.entries))
 
-		var timer *time.Timer
+		var delay time.Duration
 		if len(c.entries) == 0 || c.entries[0].Next.IsZero() {
 			// If there are no entries yet, just sleep - it still handles new entries
 			// and stop requests.
-			timer = time.NewTimer(100000 * time.Hour)
+			delay = 1000000 * time.Hour
 		} else {
-			timer = time.NewTimer(c.entries[0].Next.Sub(now))
-			//fmt.Printf(" %v, %+v\n", c.entries[0].Next.Sub(now), c.entries[0].ID)
+			delay = c.entries[0].Next.Sub(now)
+		}
+
+		if timer == nil {
+			timer = time.NewTimer(delay)
+		} else {
+			c.resetTimer(timer, delay)
 		}
 
 		for {
 			select {
-			case now = <-timer.C:
-				now = now.In(c.location)
+			case <-timer.C:
+				now = c.now()
 				c.logger.Info("wake", "now", now)
 				// Run every entry whose next time was less than now
 				for {
@@ -313,6 +321,20 @@ func (c *Cron) run() {
 	}
 }
 
+// resetTimer reset timer
+func (c *Cron) resetTimer(timer *time.Timer, delay time.Duration) {
+	// timer.Stop It returns true if the call stops the timer, false if the timer has already expired or been stopped.
+	// timer.Stop It does not close the channel
+	if !timer.Stop() {
+		select {
+		case <-timer.C: // Try to drain the channel to ensure the channel is empty after a call to Stop.
+		default:
+		}
+	}
+	// timer.Reset should always be invoked on stopped or expired channels
+	timer.Reset(delay)
+}
+
 // startJob runs the given job in a new goroutine.
 func (c *Cron) startJob(j Job) {
 	c.jobWaiter.Add(1)
@@ -322,9 +344,9 @@ func (c *Cron) startJob(j Job) {
 	}()
 }
 
-// now returns current time in c location
+// now returns current time
 func (c *Cron) now() time.Time {
-	return time.Now().In(c.location)
+	return c.clock.Now()
 }
 
 // Stop stops the cron scheduler if it is running; otherwise it does nothing.
@@ -333,12 +355,12 @@ func (c *Cron) Stop() context.Context {
 	c.runningMu.Lock()
 	defer c.runningMu.Unlock()
 	if c.running {
-		c.stop <- struct{}{}
+		c.stop <- struct{}{} //不再执行将来的定时任务
 		c.running = false
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		c.jobWaiter.Wait()
+		c.jobWaiter.Wait() //等待所有正在执行的任务完成后，再执行cancel
 		cancel()
 	}()
 	return ctx

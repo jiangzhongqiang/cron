@@ -332,6 +332,7 @@ func TestNonLocalTimezone(t *testing.T) {
 		fmt.Printf("Failed to load time zone Atlantic/Cape_Verde: %+v", err)
 		t.Fail()
 	}
+	clock := &customClock{loc: loc}
 
 	now := time.Now().In(loc)
 	// FIX: Issue #205
@@ -344,7 +345,7 @@ func TestNonLocalTimezone(t *testing.T) {
 	spec := fmt.Sprintf("%d,%d %d %d %d %d ?",
 		now.Second()+1, now.Second()+2, now.Minute(), now.Hour(), now.Day(), now.Month())
 
-	cron := New(WithLocation(loc), WithParser(secondParser))
+	cron := New(WithClock(clock), WithParser(secondParser))
 	cron.AddFunc(spec, func() { wg.Done() })
 	cron.Start()
 	defer cron.Stop()
