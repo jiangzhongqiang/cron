@@ -5,7 +5,7 @@
 
 从tovenja/cron Fork出来的(性能优化过的版本), 我这里又做了少许优化，即cron.run方法中，time.Timer的重复利用。然后又根据游戏业务，
 添加了可自定义时间的接口Clock以支持时间的自定义, 且将time.location的设置也移到了该接口中。并且为Schedule接口添加了HasNext方法,
-以满足有限次数的定时任务，并新增了与此相关的Schedule实现: 延迟可重复的Schdule和指定时间的Schedule
+以满足有限次数的定时任务，并新增了与此相关的Schedule实现: 延迟可重复的Schdule(FixedTimeSchedule)和指定时间的Schedule(LimitedDelaySchedule)
 
 从robfig/cron Fork出来的，不过这个cron框架经过使用后发现，大量任务会耗费很多CPU在Sort全部的任务上，每次任务执行完之后就会修改next执行时间，然后数组使用快排进行排序，时间复杂度O(nlogn)，我修改为min-heap的方式，每次添加任务的时候通过堆的属性进行up和down调整，每次添加任务时间复杂度O(logn)，经过验证线上CPU使用降低4~5倍。
 
@@ -15,11 +15,11 @@ Cron V3 has been released!
 
 To download the specific tagged release, run:
 ```bash
-go get github.com/tovenja/cron/v3@v3.0.0
+go get github.com/jiangzhongqiang/cron/v3@v3.0.0
 ```
 Import it in your program as:
 ```go
-import "github.com/tovenja/cron/v3"
+import "github.com/jiangzhongqiang/cron/v3"
 ```
 It requires Go 1.11 or later due to usage of Go Modules.
 
