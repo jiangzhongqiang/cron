@@ -174,6 +174,10 @@ WRAP:
 	return t.In(origLocation)
 }
 
+func (s *SpecSchedule) HasNext() bool {
+	return true
+}
+
 // dayMatches returns true if the schedule's day-of-week and day-of-month
 // restrictions are satisfied by the given time.
 func dayMatches(s *SpecSchedule, t time.Time) bool {

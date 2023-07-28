@@ -42,6 +42,7 @@ type Schedule interface {
 	// Next returns the next activation time, later than the given time.
 	// Next is invoked initially, and then each time the job is run.
 	Next(time.Time) time.Time
+	HasNext() bool
 }
 
 // EntryID identifies an entry within a Cron instance
@@ -137,6 +138,46 @@ type FuncJob func()
 
 func (f FuncJob) Run() { f() }
 
+// AddFuncWithFixedTime adds a func to the Cron to be executed at the fixed time of given
+func (c *Cron) AddFuncWithFixedTime(execTime time.Time, cmd func()) (EntryID, error) {
+	return c.AddJobWithFixedTime(execTime, FuncJob(cmd))
+}
+
+// AddJobWithFixedTime adds a Job to the Cron to be executed at the fixed time of given
+func (c *Cron) AddJobWithFixedTime(execTime time.Time, cmd Job) (EntryID, error) {
+	schedule, err := NewFixedTimeSchedule(execTime)
+	if err != nil {
+		return 0, err
+	}
+	return c.Schedule(schedule, cmd), nil
+}
+
+// AddFuncWithDelay adds a func to the Cron to be executed with a delay time of given, only once
+func (c *Cron) AddFuncWithDelay(delay time.Duration, cmd func()) (EntryID, error) {
+	return c.AddJobWithLoopDelay(delay, 1, FuncJob(cmd))
+}
+
+// AddFuncWithLoopDelay adds a func to the Cron to be executed with a delay time of given each time, repeat the given times
+// @param loop: the given times
+func (c *Cron) AddFuncWithLoopDelay(delay time.Duration, loop int64, cmd func()) (EntryID, error) {
+	return c.AddJobWithLoopDelay(delay, loop, FuncJob(cmd))
+}
+
+// AddJobWithDelay adds a Job to the Cron to be executed with a delay time of given, only once
+func (c *Cron) AddJobWithDelay(delay time.Duration, cmd Job) (EntryID, error) {
+	return c.AddJobWithLoopDelay(delay, 1, cmd)
+}
+
+// AddJobWithLoopDelay adds a Job to the Cron to be executed with a delay time of given each time, repeat the given times
+// @param loop: the given times
+func (c *Cron) AddJobWithLoopDelay(delay time.Duration, loop int64, cmd Job) (EntryID, error) {
+	schedule, err := NewLimitedDelaySchedule(delay, loop)
+	if err != nil {
+		return 0, err
+	}
+	return c.Schedule(schedule, cmd), nil
+}
+
 // AddFunc adds a func to the Cron to be run on the given schedule.
 // The spec is parsed using the time zone of this Cron instance as the default.
 // An opaque ID is returned that can be used to later remove it.
@@ -166,7 +207,6 @@ func (c *Cron) Schedule(schedule Schedule, cmd Job) EntryID {
 		Schedule:   schedule,
 		WrappedJob: c.chain.Then(cmd),
 		Job:        cmd,
-		Next:       schedule.Next(time.Now()),
 	}
 	if !c.running {
 		heap.Push(&c.entries, entry)
@@ -247,9 +287,11 @@ func (c *Cron) run() {
 	sortedEntries := new(EntryHeap)
 	for len(c.entries) > 0 {
 		entry := heap.Pop(&c.entries).(*Entry)
-		entry.Next = entry.Schedule.Next(now)
-		heap.Push(sortedEntries, entry)
-		c.logger.Info("schedule", "now", now, "entry", entry.ID, "next", entry.Next)
+		if entry.Schedule.HasNext() {
+			entry.Next = entry.Schedule.Next(now)
+			heap.Push(sortedEntries, entry)
+			c.logger.Info("schedule", "now", now, "entry", entry.ID, "next", entry.Next)
+		}
 	}
 	c.entries = *sortedEntries
 
@@ -282,24 +324,27 @@ func (c *Cron) run() {
 				// Run every entry whose next time was less than now
 				for {
 					e := c.entries.Peek()
-					if e.Next.After(now) || e.Next.IsZero() {
+					if e == nil || e.Next.After(now) || e.Next.IsZero() {
 						break
 					}
 					e = heap.Pop(&c.entries).(*Entry)
 					c.startJob(e.WrappedJob)
 					e.Prev = e.Next
-					e.Next = e.Schedule.Next(now)
-					heap.Push(&c.entries, e)
-					c.logger.Info("run", "now", now, "entry", e.ID, "next", e.Next)
+					if e.Schedule.HasNext() {
+						e.Next = e.Schedule.Next(now)
+						heap.Push(&c.entries, e)
+						c.logger.Info("run", "now", now, "entry", e.ID, "next", e.Next)
+					}
 				}
 
 			case newEntry := <-c.add:
 				timer.Stop()
 				now = c.now()
-				newEntry.Next = newEntry.Schedule.Next(now)
-				heap.Push(&c.entries, newEntry)
-				c.logger.Info("added", "now", now, "entry", newEntry.ID, "next", newEntry.Next)
-
+				if newEntry.Schedule.HasNext() {
+					newEntry.Next = newEntry.Schedule.Next(now)
+					heap.Push(&c.entries, newEntry)
+					c.logger.Info("added", "now", now, "entry", newEntry.ID, "next", newEntry.Next)
+				}
 			case replyChan := <-c.snapshot:
 				replyChan <- c.entrySnapshot()
 				continue
