@@ -138,13 +138,13 @@ type FuncJob func()
 
 func (f FuncJob) Run() { f() }
 
-// AddFuncWithFixedTime adds a func to the Cron to be executed at the fixed time of given
-func (c *Cron) AddFuncWithFixedTime(execTime time.Time, cmd func()) (EntryID, error) {
-	return c.AddJobWithFixedTime(execTime, FuncJob(cmd))
+// AddFuncAtFixedTime adds a func to the Cron to be executed at the time of given
+func (c *Cron) AddFuncAtFixedTime(execTime time.Time, cmd func()) (EntryID, error) {
+	return c.AddJobAtFixedTime(execTime, FuncJob(cmd))
 }
 
-// AddJobWithFixedTime adds a Job to the Cron to be executed at the fixed time of given
-func (c *Cron) AddJobWithFixedTime(execTime time.Time, cmd Job) (EntryID, error) {
+// AddJobAtFixedTime adds a Job to the Cron to be executed at the fixed time of given
+func (c *Cron) AddJobAtFixedTime(execTime time.Time, cmd Job) (EntryID, error) {
 	schedule, err := NewFixedTimeSchedule(execTime)
 	if err != nil {
 		return 0, err
@@ -163,12 +163,12 @@ func (c *Cron) AddFuncWithLoopDelay(delay time.Duration, loop int64, cmd func())
 	return c.AddJobWithLoopDelay(delay, loop, FuncJob(cmd))
 }
 
-// AddJobWithDelay adds a Job to the Cron to be executed with a delay time of given, only once
+// AddJobWithDelay adds a Job to the Cron to be executed after a delay time of given, only once
 func (c *Cron) AddJobWithDelay(delay time.Duration, cmd Job) (EntryID, error) {
 	return c.AddJobWithLoopDelay(delay, 1, cmd)
 }
 
-// AddJobWithLoopDelay adds a Job to the Cron to be executed with a delay time of given each time, repeat the given times
+// AddJobWithLoopDelay adds a Job to the Cron to be executed after a delay time of given each time and repeat the given times
 // @param loop: the given times
 func (c *Cron) AddJobWithLoopDelay(delay time.Duration, loop int64, cmd Job) (EntryID, error) {
 	schedule, err := NewLimitedDelaySchedule(delay, loop)

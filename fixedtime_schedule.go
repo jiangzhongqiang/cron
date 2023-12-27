@@ -17,7 +17,7 @@ func (d *FixedTimeSchedule) Next(_ time.Time) time.Time {
 }
 
 func (d *FixedTimeSchedule) HasNext() bool {
-	return d.Loop == -1 || d.Loop > 0
+	return d.Loop == INFINITY_LOOP || d.Loop > 0
 }
 
 func NewFixedTimeSchedule(execTime time.Time) (Schedule, error) {

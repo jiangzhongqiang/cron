@@ -22,8 +22,9 @@ var (
 	seconds = bounds{0, 59, nil}
 	minutes = bounds{0, 59, nil}
 	hours   = bounds{0, 23, nil}
-	dom     = bounds{1, 31, nil}
-	months  = bounds{1, 12, map[string]uint{
+	// day of month 月号；月日
+	dom    = bounds{1, 31, nil}
+	months = bounds{1, 12, map[string]uint{
 		"jan": 1,
 		"feb": 2,
 		"mar": 3,
@@ -37,6 +38,7 @@ var (
 		"nov": 11,
 		"dec": 12,
 	}}
+	// day of week 周几
 	dow = bounds{0, 6, map[string]uint{
 		"sun": 0,
 		"mon": 1,

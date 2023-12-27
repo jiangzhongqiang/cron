@@ -419,6 +419,29 @@ func parseDescriptor(descriptor string, loc *time.Location) (Schedule, error) {
 			Location: loc,
 		}, nil
 
+		// 每分钟
+	case "@minutely":
+		return &SpecSchedule{
+			Second:   1 << seconds.min,
+			Minute:   all(minutes),
+			Hour:     all(hours),
+			Dom:      all(dom),
+			Month:    all(months),
+			Dow:      all(dow),
+			Location: loc,
+		}, nil
+		//每秒
+	case "@secondly":
+		return &SpecSchedule{
+			Second:   all(seconds),
+			Minute:   all(minutes),
+			Hour:     all(hours),
+			Dom:      all(dom),
+			Month:    all(months),
+			Dow:      all(dow),
+			Location: loc,
+		}, nil
+
 	}
 
 	const every = "@every "
