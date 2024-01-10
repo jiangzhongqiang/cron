@@ -129,14 +129,27 @@ func (p Parser) Parse(spec string) (Schedule, error) {
 		return bits
 	}
 
-	var (
-		second     = field(fields[0], seconds)
-		minute     = field(fields[1], minutes)
-		hour       = field(fields[2], hours)
-		dayofmonth = field(fields[3], dom)
-		month      = field(fields[4], months)
-		dayofweek  = field(fields[5], dow)
-	)
+	second := field(fields[0], seconds)
+	if err != nil {
+		return nil, err
+	}
+	minute := field(fields[1], minutes)
+	if err != nil {
+		return nil, err
+	}
+	hour := field(fields[2], hours)
+	if err != nil {
+		return nil, err
+	}
+	dayofmonth := field(fields[3], dom)
+	if err != nil {
+		return nil, err
+	}
+	month := field(fields[4], months)
+	if err != nil {
+		return nil, err
+	}
+	dayofweek := field(fields[5], dow)
 	if err != nil {
 		return nil, err
 	}
@@ -312,6 +325,13 @@ func getRange(expr string, r bounds) (uint64, error) {
 	}
 	if step == 0 {
 		return 0, fmt.Errorf("step of range should be a positive number: %s", expr)
+	}
+	if step < r.min || step > r.max {
+		min := r.min
+		if min == 0 {
+			min = 1
+		}
+		return 0, fmt.Errorf("step of range should in [%d, %d]: %s", min, r.max, expr)
 	}
 
 	return getBits(start, end, step) | extra, nil
