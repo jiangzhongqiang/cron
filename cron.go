@@ -11,20 +11,21 @@ import (
 // specified by the schedule. It may be started, stopped, and the entries may
 // be inspected while running.
 type Cron struct {
-	entries   EntryHeap
-	chain     Chain
-	stop      chan struct{}
-	add       chan *Entry
-	remove    chan EntryID
-	snapshot  chan chan []Entry
-	running   bool
-	logger    Logger
-	clock     Clock
-	runningMu sync.Mutex
-	location  *time.Location
-	parser    ScheduleParser
-	nextID    EntryID
-	jobWaiter sync.WaitGroup
+	entries    EntryHeap
+	chain      Chain
+	stop       chan struct{}
+	timeChange chan struct{}
+	add        chan *Entry
+	remove     chan EntryID
+	snapshot   chan chan []Entry
+	running    bool
+	logger     Logger
+	clock      Clock
+	runningMu  sync.Mutex
+	location   *time.Location
+	parser     ScheduleParser
+	nextID     EntryID
+	jobWaiter  sync.WaitGroup
 }
 
 // ScheduleParser is an interface for schedule spec parsers that return a Schedule
@@ -114,17 +115,18 @@ func (s byTime) Less(i, j int) bool {
 // See "cron.With*" to modify the default behavior.
 func New(opts ...Option) *Cron {
 	c := &Cron{
-		entries:   nil,
-		chain:     NewChain(),
-		add:       make(chan *Entry),
-		stop:      make(chan struct{}),
-		snapshot:  make(chan chan []Entry),
-		remove:    make(chan EntryID),
-		running:   false,
-		runningMu: sync.Mutex{},
-		logger:    DefaultLogger,
-		clock:     DefaultClock,
-		parser:    standardParser,
+		entries:    nil,
+		chain:      NewChain(),
+		add:        make(chan *Entry),
+		stop:       make(chan struct{}),
+		timeChange: make(chan struct{}),
+		snapshot:   make(chan chan []Entry),
+		remove:     make(chan EntryID),
+		running:    false,
+		runningMu:  sync.Mutex{},
+		logger:     DefaultLogger,
+		clock:      DefaultClock,
+		parser:     standardParser,
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -354,6 +356,9 @@ func (c *Cron) run() {
 				c.logger.Info("stop")
 				return
 
+			case <-c.timeChange:
+				timer.Stop()
+				c.logger.Info("timeChange")
 			case id := <-c.remove:
 				timer.Stop()
 				now = c.now()
@@ -409,6 +414,15 @@ func (c *Cron) Stop() context.Context {
 		cancel()
 	}()
 	return ctx
+}
+
+// TimeChange 时间变化了
+func (c *Cron) TimeChange() {
+	c.runningMu.Lock()
+	defer c.runningMu.Unlock()
+	if c.running {
+		c.timeChange <- struct{}{}
+	}
 }
 
 // entrySnapshot returns a copy of the current cron entry list.
