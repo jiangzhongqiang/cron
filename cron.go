@@ -358,7 +358,9 @@ func (c *Cron) run() {
 
 			case <-c.timeChange:
 				timer.Stop()
+				now = c.now()
 				c.logger.Info("timeChange")
+
 			case id := <-c.remove:
 				timer.Stop()
 				now = c.now()
