@@ -1,5 +1,7 @@
 package cron
 
+import "time"
+
 // Option represents a modification to the default behavior of a Cron.
 type Option func(*Cron)
 
@@ -45,5 +47,17 @@ func WithLogger(logger Logger) Option {
 func WithClock(clock Clock) Option {
 	return func(c *Cron) {
 		c.clock = clock
+	}
+}
+
+// WithSlowJobTh 设置慢作业阈值
+// 0: 关闭慢作业日志
+// 大于0: 开启慢作业日志，且作业时间大于该阈值slowJobTh的话，则记录
+func WithSlowJobTh(slowJobTh time.Duration) Option {
+	return func(c *Cron) {
+		if slowJobTh <= 0 {
+			return
+		}
+		c.SlowJobTh = slowJobTh
 	}
 }

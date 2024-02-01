@@ -26,6 +26,8 @@ type Cron struct {
 	parser     ScheduleParser
 	nextID     EntryID
 	jobWaiter  sync.WaitGroup
+	// SlowJobTh(SlowJobThreshold) 慢作业阈值, 0: 关闭慢作业日志, 大于0: 开启慢作业日志，且作业时间大于该阈值slowJobTh的话，则记录
+	SlowJobTh time.Duration
 }
 
 // ScheduleParser is an interface for schedule spec parsers that return a Schedule
@@ -212,6 +214,7 @@ func (c *Cron) Schedule(desc string, schedule Schedule, cmd Job) EntryID {
 		Schedule:   schedule,
 		WrappedJob: c.chain.Then(cmd),
 		Job:        cmd,
+		Desc:       desc,
 	}
 	if !c.running {
 		heap.Push(&c.entries, entry)
@@ -333,7 +336,7 @@ func (c *Cron) run() {
 						break
 					}
 					e = heap.Pop(&c.entries).(*Entry)
-					c.startJob(e.WrappedJob)
+					c.startJob(e)
 					e.Prev = e.Next
 					if e.Schedule.HasNext() {
 						e.Next = e.Schedule.Next(now)
@@ -393,12 +396,19 @@ func (c *Cron) resetTimer(timer *time.Timer, delay time.Duration) {
 }
 
 // startJob runs the given job in a new goroutine.
-func (c *Cron) startJob(j Job) {
+func (c *Cron) startJob(e *Entry) {
 	c.jobWaiter.Add(1)
 	// todo 这里要不要用一个goroute池来执行作业呢？
 	go func() {
-		defer c.jobWaiter.Done()
-		j.Run()
+		startTime := c.now()
+		defer func() {
+			c.jobWaiter.Done()
+			costTime := c.now().Sub(startTime)
+			if c.SlowJobTh > 0 && costTime > c.SlowJobTh {
+				c.logger.Warn("slow job", "entry", e.ID, "desc", e.Desc, ", slowJobThreshold", c.SlowJobTh, "costTime", costTime)
+			}
+		}()
+		e.WrappedJob.Run()
 	}()
 }
 

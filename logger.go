@@ -19,6 +19,7 @@ var DiscardLogger Logger = PrintfLogger(log.New(ioutil.Discard, "", 0))
 type Logger interface {
 	// Info logs routine messages about cron's operation.
 	Info(msg string, keysAndValues ...interface{})
+	Warn(msg string, keysAndValues ...interface{})
 	// Error logs an error condition.
 	Error(err error, msg string, keysAndValues ...interface{})
 }
@@ -47,6 +48,13 @@ func (pl printfLogger) Info(msg string, keysAndValues ...interface{}) {
 			formatString(len(keysAndValues)),
 			append([]interface{}{msg}, keysAndValues...)...)
 	}
+}
+
+func (pl printfLogger) Warn(msg string, keysAndValues ...interface{}) {
+	keysAndValues = formatTimes(keysAndValues)
+	pl.logger.Printf(
+		formatString(len(keysAndValues)),
+		append([]interface{}{msg}, keysAndValues...)...)
 }
 
 func (pl printfLogger) Error(err error, msg string, keysAndValues ...interface{}) {
