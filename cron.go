@@ -72,6 +72,9 @@ type Entry struct {
 	// It is kept around so that user code that needs to get at the job later,
 	// e.g. via Entries() can do so.
 	Job Job
+
+	// Desc is a description of Job
+	Desc string
 }
 
 // Valid returns true if this is not the zero entry.
@@ -141,66 +144,66 @@ type FuncJob func()
 func (f FuncJob) Run() { f() }
 
 // AddFuncAtFixedTime adds a func to the Cron to be executed at the time of given
-func (c *Cron) AddFuncAtFixedTime(execTime time.Time, cmd func()) (EntryID, error) {
-	return c.AddJobAtFixedTime(execTime, FuncJob(cmd))
+func (c *Cron) AddFuncAtFixedTime(desc string, execTime time.Time, cmd func()) (EntryID, error) {
+	return c.AddJobAtFixedTime(desc, execTime, FuncJob(cmd))
 }
 
 // AddJobAtFixedTime adds a Job to the Cron to be executed at the fixed time of given
-func (c *Cron) AddJobAtFixedTime(execTime time.Time, cmd Job) (EntryID, error) {
+func (c *Cron) AddJobAtFixedTime(desc string, execTime time.Time, cmd Job) (EntryID, error) {
 	schedule, err := NewFixedTimeSchedule(execTime)
 	if err != nil {
 		return 0, err
 	}
-	return c.Schedule(schedule, cmd), nil
+	return c.Schedule(desc, schedule, cmd), nil
 }
 
 // AddFuncWithDelay adds a func to the Cron to be executed with a delay time of given, only once
-func (c *Cron) AddFuncWithDelay(delay time.Duration, cmd func()) (EntryID, error) {
-	return c.AddJobWithLoopDelay(delay, 1, FuncJob(cmd))
+func (c *Cron) AddFuncWithDelay(desc string, delay time.Duration, cmd func()) (EntryID, error) {
+	return c.AddJobWithLoopDelay(desc, delay, 1, FuncJob(cmd))
 }
 
 // AddFuncWithLoopDelay adds a func to the Cron to be executed with a delay time of given each time, repeat the given times
 // @param loop: the given times
-func (c *Cron) AddFuncWithLoopDelay(delay time.Duration, loop int64, cmd func()) (EntryID, error) {
-	return c.AddJobWithLoopDelay(delay, loop, FuncJob(cmd))
+func (c *Cron) AddFuncWithLoopDelay(desc string, delay time.Duration, loop int64, cmd func()) (EntryID, error) {
+	return c.AddJobWithLoopDelay(desc, delay, loop, FuncJob(cmd))
 }
 
 // AddJobWithDelay adds a Job to the Cron to be executed after a delay time of given, only once
-func (c *Cron) AddJobWithDelay(delay time.Duration, cmd Job) (EntryID, error) {
-	return c.AddJobWithLoopDelay(delay, 1, cmd)
+func (c *Cron) AddJobWithDelay(desc string, delay time.Duration, cmd Job) (EntryID, error) {
+	return c.AddJobWithLoopDelay(desc, delay, 1, cmd)
 }
 
 // AddJobWithLoopDelay adds a Job to the Cron to be executed after a delay time of given each time and repeat the given times
 // @param loop: the given times
-func (c *Cron) AddJobWithLoopDelay(delay time.Duration, loop int64, cmd Job) (EntryID, error) {
+func (c *Cron) AddJobWithLoopDelay(desc string, delay time.Duration, loop int64, cmd Job) (EntryID, error) {
 	schedule, err := NewLimitedDelaySchedule(delay, loop)
 	if err != nil {
 		return 0, err
 	}
-	return c.Schedule(schedule, cmd), nil
+	return c.Schedule(desc, schedule, cmd), nil
 }
 
 // AddFunc adds a func to the Cron to be run on the given schedule.
 // The spec is parsed using the time zone of this Cron instance as the default.
 // An opaque ID is returned that can be used to later remove it.
-func (c *Cron) AddFunc(spec string, cmd func()) (EntryID, error) {
-	return c.AddJob(spec, FuncJob(cmd))
+func (c *Cron) AddFunc(desc string, spec string, cmd func()) (EntryID, error) {
+	return c.AddJob(desc, spec, FuncJob(cmd))
 }
 
 // AddJob adds a Job to the Cron to be run on the given schedule.
 // The spec is parsed using the time zone of this Cron instance as the default.
 // An opaque ID is returned that can be used to later remove it.
-func (c *Cron) AddJob(spec string, cmd Job) (EntryID, error) {
+func (c *Cron) AddJob(desc string, spec string, cmd Job) (EntryID, error) {
 	schedule, err := c.parser.Parse(spec)
 	if err != nil {
 		return 0, err
 	}
-	return c.Schedule(schedule, cmd), nil
+	return c.Schedule(desc, schedule, cmd), nil
 }
 
 // Schedule adds a Job to the Cron to be run on the given schedule.
 // The job is wrapped with the configured Chain.
-func (c *Cron) Schedule(schedule Schedule, cmd Job) EntryID {
+func (c *Cron) Schedule(desc string, schedule Schedule, cmd Job) EntryID {
 	c.runningMu.Lock()
 	defer c.runningMu.Unlock()
 	c.nextID++
@@ -292,7 +295,7 @@ func (c *Cron) run() {
 		if entry.Schedule.HasNext() {
 			entry.Next = entry.Schedule.Next(now)
 			heap.Push(sortedEntries, entry)
-			c.logger.Info("schedule", "now", now, "entry", entry.ID, "next", entry.Next)
+			c.logger.Info("schedule", "now", now, "entry", entry.ID, ", desc", entry.Desc, "next", entry.Next)
 		}
 	}
 	c.entries = *sortedEntries
@@ -335,7 +338,7 @@ func (c *Cron) run() {
 					if e.Schedule.HasNext() {
 						e.Next = e.Schedule.Next(now)
 						heap.Push(&c.entries, e)
-						c.logger.Info("run", "now", now, "entry", e.ID, "next", e.Next)
+						c.logger.Info("run", "now", now, "entry", e.ID, ", desc", e.Desc, "next", e.Next)
 					}
 				}
 
@@ -345,7 +348,7 @@ func (c *Cron) run() {
 				if newEntry.Schedule.HasNext() {
 					newEntry.Next = newEntry.Schedule.Next(now)
 					heap.Push(&c.entries, newEntry)
-					c.logger.Info("added", "now", now, "entry", newEntry.ID, "next", newEntry.Next)
+					c.logger.Info("added", "now", now, "entry", newEntry.ID, ", desc", newEntry.Desc, "next", newEntry.Next)
 				}
 			case replyChan := <-c.snapshot:
 				replyChan <- c.entrySnapshot()
@@ -364,8 +367,10 @@ func (c *Cron) run() {
 			case id := <-c.remove:
 				timer.Stop()
 				now = c.now()
-				c.removeEntry(id)
-				c.logger.Info("removed", "entry", id)
+				removedEntry := c.removeEntry(id)
+				if removedEntry != nil {
+					c.logger.Info("removed", "entry", id, ", desc", removedEntry.Desc)
+				}
 			}
 
 			break
@@ -390,6 +395,7 @@ func (c *Cron) resetTimer(timer *time.Timer, delay time.Duration) {
 // startJob runs the given job in a new goroutine.
 func (c *Cron) startJob(j Job) {
 	c.jobWaiter.Add(1)
+	// todo 这里要不要用一个goroute池来执行作业呢？
 	go func() {
 		defer c.jobWaiter.Done()
 		j.Run()
@@ -436,11 +442,12 @@ func (c *Cron) entrySnapshot() []Entry {
 	return entries
 }
 
-func (c *Cron) removeEntry(id EntryID) {
+func (c *Cron) removeEntry(id EntryID) *Entry {
 	for idx, e := range c.entries {
 		if e.ID == id {
 			heap.Remove(&c.entries, idx)
-			return
+			return e
 		}
 	}
+	return nil
 }

@@ -13,7 +13,7 @@ func TestFixedTimeSchedule(t *testing.T) {
 
 	fmt.Println("-----------------startTime=", cr.clock.Now())
 	execTime := cr.clock.Now().Add(5 * time.Second)
-	cr.AddFuncAtFixedTime(execTime, func() {
+	cr.AddFuncAtFixedTime("", execTime, func() {
 		fmt.Println("----------------- currTime=", cr.clock.Now(), ", execTime", execTime)
 	})
 
