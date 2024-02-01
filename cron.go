@@ -300,7 +300,7 @@ func (c *Cron) run() {
 	var timer *time.Timer
 	for {
 		// Determine the next entry to run.
-		// User min-heap no need sort anymore
+		// Use min-heap no need sort anymore
 		//sort.Sort(byTime(c.entries))
 
 		var delay time.Duration
@@ -413,9 +413,9 @@ func (c *Cron) Stop() context.Context {
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		c.jobWaiter.Wait() //等待所有正在执行的任务完成后，再执行cancel
-		cancel()
+		cancel()           //会发出一个 ctx.Done() 信号
 	}()
-	return ctx
+	return ctx //用户可以监听ctx.Done()得知什么时候Cron真的停止了.
 }
 
 // TimeChange 时间变化了
