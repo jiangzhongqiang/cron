@@ -405,7 +405,7 @@ func (c *Cron) startJob(e *Entry) {
 			c.jobWaiter.Done()
 			costTime := c.now().Sub(startTime)
 			if c.SlowJobTh > 0 && costTime > c.SlowJobTh {
-				c.logger.Warn("slow job", "entry:", e.ID, ", desc:", e.Desc, ", slowJobThreshold:", c.SlowJobTh, ", costTime:", costTime)
+				c.logger.Warn("slow job", "entry:", e.ID, ",desc:", e.Desc, ",slowJobThreshold:", c.SlowJobTh, ",costTime:", costTime)
 			}
 		}()
 		e.WrappedJob.Run()
